@@ -58,7 +58,10 @@ fn print_discovered_servers(servers: Res<DiscoveredServerList>) {
 
     info!("Discovered {} servers:", servers.len());
     for server in &servers {
-        info!("{:?}", server);
+        info!(
+            "Name '{}' ({}) with addresses {:?} on port {}",
+            server.name, server.hostname, server.addresses, server.port
+        );
     }
 }
 
