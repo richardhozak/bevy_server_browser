@@ -204,12 +204,16 @@ fn update_discovered_servers(
                 }
                 EntryRef::Vacant(entry) => {
                     changed = true;
+                    let hostname = info.get_hostname();
                     entry.insert(DiscoveredServer {
                         name: info
                             .get_property_val_str("name")
                             .unwrap_or("Unknown Server")
                             .to_string(),
-                        hostname: info.get_hostname().to_string(),
+                        hostname: hostname
+                            .strip_suffix(".local.")
+                            .unwrap_or(hostname)
+                            .to_string(),
                         port: info.get_port(),
                         addresses: info.get_addresses().to_owned(),
                     });
