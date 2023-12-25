@@ -13,7 +13,7 @@ See usage below or [examples](https://github.com/richardhozak/bevy_server_browse
 This example shows both server and client in one single app, meaning the client will discover itself, you can use both functionalities or just client or server.
 
 ```rust
-use bevy::{log::LogPlugin, prelude::*};
+use bevy::prelude::*;
 use bevy_server_browser::prelude::*;
 
 fn main() {
