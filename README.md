@@ -69,4 +69,4 @@ fn print_discovered_servers(servers: Res<DiscoveredServerList>) {
 
 | bevy | bevy_server_browser |
 | ---- | --------------------|
-| 0.12 | 0.1.0               |
+| 0.12 | 0.1.0, 0.2.0        |
