@@ -1,0 +1,20 @@
+[package]
+name = "bevy_server_browser"
+version = "0.1.0"
+edition = "2021"
+authors = ["Richard Hozák"]
+description = "Bevy game engine plugin for creating and searching discoverable servers on local networks"
+homepage = "https://github.com/richardhozak/bevy_server_browser"
+keywords = ["bevy", "gamedev", "server", "browser", "lan"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/richardhozak/bevy_server_browser"
+
+[dependencies]
+bevy_app = { version = "0.12", default-features = false }
+bevy_ecs = { version = "0.12", default-features = false }
+bevy_utils = "0.12"
+gethostname = "0.4.3"
+mdns-sd = { version = "0.10", default-features = false }
+
+[dev-dependencies]
+bevy = "0.12"
