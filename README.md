@@ -41,6 +41,7 @@ fn setup_discoverable_server(mut commands: Commands) {
     commands.insert_resource(DiscoverableServer {
         name: "Test Server".to_string(),
         port: 1234,
+        metadata: default(),
     });
 }
 

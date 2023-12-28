@@ -21,8 +21,8 @@ fn main() {
 fn setup_discoverable_server(mut commands: Commands) {
     info!("Adding discoverable server");
     commands.insert_resource(DiscoverableServer {
-        name: "Test Server".to_string(),
         port: 1234,
+        metadata: [("name".to_string(), "TestServer".to_string())].into(),
     });
 }
 
@@ -39,8 +39,8 @@ fn print_discovered_servers(servers: Res<DiscoveredServerList>) {
     info!("Discovered {} servers:", servers.len());
     for server in &servers {
         info!(
-            "Name '{}' ({}) with addresses {:?} on port {}",
-            server.name, server.hostname, server.addresses, server.port
+            "Server '{}' with addresses {:?} on port {} with metadata {:?}",
+            server.hostname, server.addresses, server.port, server.metadata
         );
     }
 }

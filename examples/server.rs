@@ -13,7 +13,7 @@ fn main() {
 fn setup_discoverable_server(mut commands: Commands) {
     info!("Adding discoverable server");
     commands.insert_resource(DiscoverableServer {
-        name: "Test Server".to_string(),
         port: 1234,
+        metadata: [("name".to_string(), "TestServer".to_string())].into(),
     });
 }
