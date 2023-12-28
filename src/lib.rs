@@ -36,7 +36,7 @@ pub struct DiscoverableServer {
 }
 
 /// Contains info about discovered server on local network.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiscoveredServer {
     /// User-facing name of a discovered server, see [`DiscoverableServer::name`]
     pub name: String,
@@ -134,6 +134,9 @@ impl ServerBrowserPlugin {
     }
 }
 
+#[derive(Resource)]
+struct Logger(Receiver<DaemonEvent>);
+
 impl Plugin for ServerBrowserPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Service {
@@ -142,20 +145,21 @@ impl Plugin for ServerBrowserPlugin {
         });
         app.insert_resource(DiscoveredServerList(default()));
         app.add_event::<SearchServers>();
+        app.add_systems(Startup, setup_logger);
         app.add_systems(
             PreUpdate,
             (
-                register_server.run_if(resource_added::<DiscoverableServer>()),
+                register_server.run_if(resource_exists_and_changed::<DiscoverableServer>()),
                 unregister_server
                     .run_if(resource_removed::<DiscoverableServer>())
-                    .run_if(resource_exists::<State>()),
+                    .run_if(resource_exists::<ServiceFullname>()),
                 search_servers,
             ),
         );
         app.add_systems(
             PostUpdate,
             (
-                log_daemon_events.run_if(resource_exists::<State>()),
+                log_daemon_events.run_if(resource_exists::<Logger>()),
                 update_discovered_servers.run_if(resource_exists::<Searching>()),
             ),
         );
@@ -169,10 +173,7 @@ struct Service {
 }
 
 #[derive(Resource)]
-struct State {
-    monitor: Receiver<DaemonEvent>,
-    service_fullname: String,
-}
+struct ServiceFullname(String);
 
 #[derive(Resource)]
 struct Searching {
@@ -194,31 +195,34 @@ fn update_discovered_servers(
         debug!("{:?}", event);
 
         match event {
-            ServiceEvent::ServiceResolved(info) => match servers.0.entry_ref(info.get_fullname()) {
-                EntryRef::Occupied(mut entry) => {
-                    let server = entry.get_mut();
-                    if server.addresses != *info.get_addresses() {
+            ServiceEvent::ServiceResolved(info) => {
+                let hostname = info.get_hostname();
+                let server = DiscoveredServer {
+                    name: info
+                        .get_property_val_str("name")
+                        .unwrap_or("Unknown Server")
+                        .to_string(),
+                    hostname: hostname
+                        .strip_suffix(".local.")
+                        .unwrap_or(hostname)
+                        .to_string(),
+                    port: info.get_port(),
+                    addresses: info.get_addresses().to_owned(),
+                };
+
+                match servers.0.entry_ref(info.get_fullname()) {
+                    EntryRef::Occupied(mut entry) => {
+                        if entry.get() != &server {
+                            changed = true;
+                            entry.insert(server);
+                        }
+                    }
+                    EntryRef::Vacant(entry) => {
                         changed = true;
-                        server.addresses.extend(info.get_addresses());
+                        entry.insert(server);
                     }
                 }
-                EntryRef::Vacant(entry) => {
-                    changed = true;
-                    let hostname = info.get_hostname();
-                    entry.insert(DiscoveredServer {
-                        name: info
-                            .get_property_val_str("name")
-                            .unwrap_or("Unknown Server")
-                            .to_string(),
-                        hostname: hostname
-                            .strip_suffix(".local.")
-                            .unwrap_or(hostname)
-                            .to_string(),
-                        port: info.get_port(),
-                        addresses: info.get_addresses().to_owned(),
-                    });
-                }
-            },
+            }
             ServiceEvent::ServiceRemoved(_, fullname) => {
                 changed = true;
                 servers.0.remove(&fullname);
@@ -257,16 +261,25 @@ fn search_servers(
     commands.insert_resource(Searching { browse });
 }
 
-fn log_daemon_events(state: Res<State>) {
-    for event in state.monitor.try_iter() {
+fn setup_logger(mut commands: Commands, service: Res<Service>) {
+    let monitor = service
+        .daemon
+        .monitor()
+        .expect("Failed to monitor the daemon");
+
+    commands.insert_resource(Logger(monitor));
+}
+
+fn log_daemon_events(logger: Res<Logger>) {
+    for event in logger.0.try_iter() {
         debug!("{:?}", event);
     }
 }
 
-fn unregister_server(state: Res<State>, service: Res<Service>) {
+fn unregister_server(service_fullname: Res<ServiceFullname>, service: Res<Service>) {
     service
         .daemon
-        .unregister(&state.service_fullname)
+        .unregister(&service_fullname.0)
         .expect("Could not unregister service");
 }
 
@@ -286,20 +299,13 @@ fn register_server(mut commands: Commands, server: Res<DiscoverableServer>, serv
     .expect("valid service info")
     .enable_addr_auto();
 
-    let monitor = service
-        .daemon
-        .monitor()
-        .expect("Failed to monitor the daemon");
     let service_fullname = service_info.get_fullname().to_string();
     service
         .daemon
         .register(service_info)
         .expect("Failed to register mDNS service");
 
-    commands.insert_resource(State {
-        monitor,
-        service_fullname,
-    });
+    commands.insert_resource(ServiceFullname(service_fullname));
 }
 
 fn validate_name(name: &str) -> String {
