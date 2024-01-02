@@ -14,7 +14,7 @@ use bevy_utils::{
     tracing::debug,
     StableHashMap,
 };
-use mdns_sd::{DaemonEvent, Receiver, ServiceDaemon, ServiceEvent, ServiceInfo};
+use mdns_sd::{DaemonEvent, Receiver, ServiceDaemon, ServiceEvent, ServiceInfo, TxtProperties};
 
 pub mod prelude {
     //! Prelude containing all types you need for making discoverable server and for discovering servers.
@@ -22,6 +22,65 @@ pub mod prelude {
         DiscoverableServer, DiscoveredServer, DiscoveredServerList, SearchServers,
         ServerBrowserPlugin,
     };
+}
+
+/// A string key-value map for additional server info to send to clients.
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct ServerMetadata(StableHashMap<String, String>);
+
+impl ServerMetadata {
+    fn from_txt_properties(props: &TxtProperties) -> ServerMetadata {
+        let mut metadata = ServerMetadata::default();
+
+        for property in props.iter() {
+            metadata.set(property.key(), property.val_str());
+        }
+
+        metadata
+    }
+
+    fn into_hash_map(self) -> HashMap<String, String> {
+        self.0.into_iter().collect()
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    pub fn get<K: AsRef<str>>(&self, key: K) -> Option<&str> {
+        self.0.get(key.as_ref()).map(|v| v.as_str())
+    }
+
+    /// Sets the value of a key.
+    pub fn set<K: AsRef<str>, V: ToString>(&mut self, key: K, value: V) {
+        self.0.entry_ref(key.as_ref()).insert(value.to_string());
+    }
+
+    /// Sets the value of a key and returns self.
+    /// This function is useful for chaining metadata creation:
+    /// ```
+    /// let metadata = ServerMetadata::new()
+    ///     .with("key", "value")
+    ///     .with("another_key", "another_value")
+    ///     .with("answer", 42)
+    /// ```
+    pub fn with<K: AsRef<str>, V: ToString>(mut self, key: K, value: V) -> Self {
+        self.set(key, value);
+        self
+    }
+
+    /// Iterate over all key-value pairs stored in metadata.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.0.iter().map(|(k, v)| (k.as_str(), v.as_str()))
+    }
+}
+
+impl<'a> IntoIterator for &'a ServerMetadata {
+    type Item = &'a (&'a str, &'a str);
+    type IntoIter = impl IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        // let a = self.0.values().into_iter();
+        let a = self.0.into_iter();
+        a
+    }
 }
 
 /// Resource that when added makes server available for discovery on local
@@ -37,7 +96,7 @@ pub struct DiscoverableServer {
     /// Additional metadata to be sent to clients. You can add information such
     /// as the user-facing name of a server, current level loaded on server,
     /// current number of players, etc.
-    pub metadata: HashMap<String, String>,
+    pub metadata: ServerMetadata,
 }
 
 /// Contains info about discovered server on local network.
@@ -56,7 +115,7 @@ pub struct DiscoveredServer {
     pub addresses: HashSet<IpAddr>,
 
     /// Additional metadata received from server, see [`DiscoverableServer::metadata`]
-    pub metadata: HashMap<String, String>,
+    pub metadata: ServerMetadata,
 }
 
 /// Resource containing all servers discovered on local network.
@@ -203,11 +262,6 @@ fn update_discovered_servers(
             ServiceEvent::ServiceResolved(info) => {
                 let hostname = info.get_hostname();
 
-                let mut metadata = HashMap::new();
-                for property in info.get_properties().iter() {
-                    metadata.insert(property.key().to_string(), property.val_str().to_string());
-                }
-
                 let server = DiscoveredServer {
                     hostname: hostname
                         .strip_suffix(".local.")
@@ -215,7 +269,7 @@ fn update_discovered_servers(
                         .to_string(),
                     port: info.get_port(),
                     addresses: info.get_addresses().to_owned(),
-                    metadata,
+                    metadata: ServerMetadata::from_txt_properties(info.get_properties()),
                 };
 
                 match servers.0.entry_ref(info.get_fullname()) {
@@ -302,7 +356,7 @@ fn register_server(mut commands: Commands, server: Res<DiscoverableServer>, serv
         &service_hostname,
         "",
         server.port,
-        server.metadata.clone(),
+        server.metadata.clone().into_hash_map(),
     )
     .expect("valid service info")
     .enable_addr_auto();
