@@ -1,10 +1,7 @@
 #![warn(missing_docs)]
 //! Bevy game engine plugin for creating and searching discoverable servers on local networks
 
-use std::{
-    collections::{HashMap, HashSet},
-    net::IpAddr,
-};
+use std::{collections::HashSet, fmt::Debug, net::IpAddr};
 
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
@@ -15,14 +12,17 @@ use bevy_utils::{
     StableHashMap,
 };
 use mdns_sd::{DaemonEvent, Receiver, ServiceDaemon, ServiceEvent, ServiceInfo};
+pub use server_metadata::ServerMetadata;
 
 pub mod prelude {
     //! Prelude containing all types you need for making discoverable server and for discovering servers.
     pub use crate::{
         DiscoverableServer, DiscoveredServer, DiscoveredServerList, SearchServers,
-        ServerBrowserPlugin,
+        ServerBrowserPlugin, ServerMetadata,
     };
 }
+
+mod server_metadata;
 
 /// Resource that when added makes server available for discovery on local
 /// network. When you change this resource through `ResMut<DiscoverableServer>`,
@@ -37,7 +37,7 @@ pub struct DiscoverableServer {
     /// Additional metadata to be sent to clients. You can add information such
     /// as the user-facing name of a server, current level loaded on server,
     /// current number of players, etc.
-    pub metadata: HashMap<String, String>,
+    pub metadata: ServerMetadata,
 }
 
 /// Contains info about discovered server on local network.
@@ -56,7 +56,7 @@ pub struct DiscoveredServer {
     pub addresses: HashSet<IpAddr>,
 
     /// Additional metadata received from server, see [`DiscoverableServer::metadata`]
-    pub metadata: HashMap<String, String>,
+    pub metadata: ServerMetadata,
 }
 
 /// Resource containing all servers discovered on local network.
@@ -203,11 +203,6 @@ fn update_discovered_servers(
             ServiceEvent::ServiceResolved(info) => {
                 let hostname = info.get_hostname();
 
-                let mut metadata = HashMap::new();
-                for property in info.get_properties().iter() {
-                    metadata.insert(property.key().to_string(), property.val_str().to_string());
-                }
-
                 let server = DiscoveredServer {
                     hostname: hostname
                         .strip_suffix(".local.")
@@ -215,7 +210,7 @@ fn update_discovered_servers(
                         .to_string(),
                     port: info.get_port(),
                     addresses: info.get_addresses().to_owned(),
-                    metadata,
+                    metadata: ServerMetadata::from_txt_properties(info.get_properties()),
                 };
 
                 match servers.0.entry_ref(info.get_fullname()) {
@@ -302,7 +297,7 @@ fn register_server(mut commands: Commands, server: Res<DiscoverableServer>, serv
         &service_hostname,
         "",
         server.port,
-        server.metadata.clone(),
+        server.metadata.clone().into_hash_map(),
     )
     .expect("valid service info")
     .enable_addr_auto();
