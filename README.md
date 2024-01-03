@@ -7,6 +7,8 @@ Bevy game engine plugin for creating and searching discoverable servers on local
 
 This plugin does not provide any connection between server and clients, you need to pair it with network library, for example [bevy_matchbox](https://crates.io/crates/bevy_matchbox). This plugin only allows clients to discover servers and its info on local network, so you do not have to type ip addresses of servers into clients.
 
+**MSRV**: Minimum Supported Rust Version is `rust 1.75`
+
 ## Usage
 See usage below or [examples](https://github.com/richardhozak/bevy_server_browser/tree/main/examples) for more comprehensive usage.
 
