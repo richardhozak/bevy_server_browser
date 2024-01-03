@@ -39,9 +39,8 @@ fn setup_discoverable_server(mut commands: Commands) {
 
     info!("Adding discoverable server");
     commands.insert_resource(DiscoverableServer {
-        name: "Test Server".to_string(),
         port: 1234,
-        metadata: default(),
+        metadata: ServerMetadata::new().with("name", "Test Server"),
     });
 }
 
@@ -61,7 +60,8 @@ fn print_discovered_servers(servers: Res<DiscoveredServerList>) {
     for server in &servers {
         info!(
             "Name '{}' ({}) with addresses {:?} on port {}",
-            server.name, server.hostname, server.addresses, server.port
+            server.metadata.get("name").unwrap_or("Unknown Name"),
+            server.hostname, server.addresses, server.port
         );
     }
 }
@@ -70,4 +70,4 @@ fn print_discovered_servers(servers: Res<DiscoveredServerList>) {
 
 | bevy | bevy_server_browser |
 | ---- | --------------------|
-| 0.12 | 0.1.0, 0.2.0        |
+| 0.12 | 0.1.0 - 0.3.0       |

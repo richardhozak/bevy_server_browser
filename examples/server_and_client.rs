@@ -22,7 +22,10 @@ fn setup_discoverable_server(mut commands: Commands) {
     info!("Adding discoverable server");
     commands.insert_resource(DiscoverableServer {
         port: 1234,
-        metadata: ServerMetadata::new().with("name", "TestServer"),
+        metadata: ServerMetadata::new()
+            .with("name", "TestServer")
+            .with("players", 0)
+            .with("max_players", 4),
     });
 }
 
